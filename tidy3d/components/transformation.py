@@ -18,12 +18,10 @@ from .autograd import TracedFloat
 class AbstractRotation(ABC, Tidy3dBaseModel):
     """Abstract rotation of vectors and tensors."""
 
-    @cached_property
     @abstractmethod
     def matrix(self) -> TensorReal:
         """Rotation matrix."""
 
-    @cached_property
     @abstractmethod
     def isidentity(self) -> bool:
         """Check whether rotation is identity."""
@@ -42,13 +40,13 @@ class AbstractRotation(ABC, Tidy3dBaseModel):
             Rotated vector.
         """
 
-        if self.isidentity:
+        if self.isidentity():
             return vector
 
         if len(vector.shape) == 1:
-            return self.matrix @ vector
+            return self.matrix() @ vector
 
-        return np.tensordot(self.matrix, vector, axes=1)
+        return np.tensordot(self.matrix(), vector, axes=1)
 
     def rotate_tensor(self, tensor: TensorReal) -> TensorReal:
         """Rotate a tensor.
@@ -64,10 +62,10 @@ class AbstractRotation(ABC, Tidy3dBaseModel):
             Rotated tensor.
         """
 
-        if self.isidentity:
+        if self.isidentity():
             return tensor
 
-        return np.matmul(self.matrix, np.matmul(tensor, self.matrix.T))
+        return np.matmul(self.matrix(), np.matmul(tensor, self.matrix().T))
 
 
 class RotationAroundAxis(AbstractRotation):
@@ -103,16 +101,16 @@ class RotationAroundAxis(AbstractRotation):
                 "The norm of vector 'axis' cannot be zero. Please provide a proper rotation axis."
             )
         return val
-
+    
     def isidentity(self) -> bool:
         """Check whether rotation is identity."""
 
         return np.isclose(self.angle % (2 * np.pi), 0)
-
+    
     def matrix(self) -> TensorReal:
         """Rotation matrix."""
 
-        if self.isidentity:
+        if self.isidentity():
             return np.eye(3)
 
         norm = np.linalg.norm(self.axis)

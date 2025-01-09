@@ -464,7 +464,7 @@ def test_rotation():
     axis = np.random.random(3)
     rot = td.RotationAroundAxis(axis=tuple(axis), angle=1.23)
 
-    R = rot.matrix
+    R = rot.matrix()
 
     assert np.all(np.abs(np.matmul(np.transpose(R), R) - np.eye(3)) < 1.0e-15)
     assert np.all(np.abs(np.matmul(R, np.transpose(R)) - np.eye(3)) < 1.0e-15)
