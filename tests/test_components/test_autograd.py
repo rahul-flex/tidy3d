@@ -21,7 +21,6 @@ from tidy3d.components.autograd.derivative_utils import DerivativeInfo
 from tidy3d.components.autograd.utils import is_tidy_box
 from tidy3d.components.data.data_array import DataArray
 from tidy3d.plugins.polyslab import ComplexPolySlab
-import tidy3d.components.geometry.polyslab as polyslab
 from tidy3d.web import run, run_async
 from tidy3d.web.api.autograd.utils import FieldMap
 
@@ -1874,116 +1873,98 @@ class TestDataArrayGrads:
 
 
 @pytest.fixture
-def create_polyslab()-> polyslab.PolySlab:
-  """
-    Creates a PolySlab instance for testing affine transformations.
+def polyslab() -> td.PolySlab:
+    """Creates a PolySlab instance for testing affine transformations."""
+    vertices = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]])
+    axis = 1  # 0 for x, 1 for y, 2 for z
+    slab_bounds = (-1.0, 1.0)
 
-    Returns
-    -------
-    polyslab.PolySlab
-        An instance of PolySlab with predefined vertices, axis, and slab bounds.
-  """
-  vertices = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]])
-  axis = 1  # 0 for x, 1 for y, 2 for z
-  slab_bounds = (-1.0, 1.0)
-
-  return polyslab.PolySlab(vertices=vertices, axis=axis, slab_bounds=slab_bounds)
+    return td.PolySlab(vertices=vertices, axis=axis, slab_bounds=slab_bounds)
 
 
-def test_translation_grad(create_polyslab: polyslab.PolySlab) -> None:
-  """
-    Checks the differentiability of the translation operation of PolySlab.
+@pytest.mark.parametrize(
+    "x, y, z",
+    [
+        (0.0, 0.0, 0.0),  # No translation (edge case)
+        (0.1, 0.2, 0.3),  # Small positive values
+        (-0.1, -0.2, -0.3),  # Small negative values
+        (1e-5, 1e-5, 1e-5),  # Near-zero translation
+        (10.0, 10.0, 10.0),  # Large values
+    ],
+)
+def test_polyslab_translated_grad(polyslab: td.PolySlab, x: float, y: float, z: float) -> None:
+    """Checks the differentiability of the translation operation of PolySlab."""
+    poly = polyslab
 
-    Parameters
-    ----------
-    create_polyslab : polyslab.PolySlab
-        The PolySlab object created using pytest fixture.
-  """
-  poly = create_polyslab
-  x, y, z = 0.1, 0.2, 0.3
-
-  def translation_grad(x: float,
-                      y: float,
-                      z: float
-                      ) -> np.ndarray:
-      """Computes the translated vertices of a PolySlab object."""
-      new_poly = poly.translated(x, y, z)
-      return new_poly.vertices
-
-  for name in ["x", "y", "z"]:
-    try:
-        if name == "x":
-            check_grads(lambda x: translation_grad(x, y, z), modes=['rev'])(x)
-        elif name == "y":
-            check_grads(lambda y: translation_grad(x, y, z), modes=['rev'])(y)
-        elif name == "z":
-            check_grads(lambda z: translation_grad(x, y, z), modes=['rev'])(z)
-
-        print(f"Translation gradient check passed for {name}.")
-    except Exception as e:
-        print(f"Translation gradient check failed for {name}: {e}")
-
-
-
-def test_scaling_grad(create_polyslab: polyslab.PolySlab) -> None:
-  """
-    Checks the differentiability of the scaling operation of PolySlab.
-
-    Parameters
-    ----------
-    create_polyslab : polyslab.PolySlab
-        The PolySlab object created using pytest fixture.
-  """
-  poly = create_polyslab
-  x, y, z = 0.1, 0.2, 0.3
-
-  def scaling_grad(x: float,
-                  y: float,
-                  z: float
-                  ) -> np.ndarray:
-      """Computes the scaled vertices of a PolySlab object."""
-      new_poly = poly.scaled(x, y, z)
-      return new_poly.vertices
-
-  for name in ["x", "y", "z"]:
-    try:
-        if name == "x":
-            check_grads(lambda x: scaling_grad(x, y, z), modes=['rev'])(x)
-        elif name == "y":
-            check_grads(lambda y: scaling_grad(x, y, z), modes=['rev'])(y)
-        elif name == "z":
-            check_grads(lambda z: scaling_grad(x, y, z), modes=['rev'])(z)
-
-        print(f"Scaling gradient check passed for {name}.")
-    except Exception as e:
-        print(f"Scaling gradient check failed for {name}: {e}")
-
-
-def test_rotation_grad(create_polyslab)-> None:
-  """
-    Checks the differentiability of the rotation operation of PolySlab.
-
-    Parameters
-    ----------
-    create_polyslab : polyslab.PolySlab
-        The PolySlab object created using pytest fixture.
-  """
-  poly = create_polyslab
-  theta = np.pi / 5  # Rotation angle
-  axis = 1  # Rotation axis (0 for x, 1 for y, 2 for z)
-  
-  
-  def rotation_grad(angle: float,
-                    axis: int,
-                    ) -> np.ndarray:
-      """Computes the rotated vertices of a PolySlab object."""
-      if axis == poly.axis:
-        new_poly = poly.rotated(angle, axis)
+    def translated_grad(x: float, y: float, z: float) -> np.ndarray:
+        """Computes the translated vertices of a PolySlab object."""
+        new_poly = poly.translated(x, y, z)
         return new_poly.vertices
-      else: 
-        pytest.raises(ValueError, match="Rotation for axes other than the PolySlab axis results in a non-differentiable Transformed object.")
-  try:
-      check_grads(lambda theta: rotation_grad(theta, axis), modes=['rev'])(theta)
-      print("Rotation gradient check passed for theta.")
-  except Exception as e:
-      print(f"Rotation gradient check failed for theta: {e}")
+
+    check_grads(lambda x: translated_grad(x, y, z), modes=["rev"])(x)
+    check_grads(lambda y: translated_grad(x, y, z), modes=["rev"])(y)
+    check_grads(lambda z: translated_grad(x, y, z), modes=["rev"])(z)
+
+
+@pytest.mark.parametrize(
+    "x, y, z, expect_exception",
+    [
+        (0.0, 0.0, 0.0, True),  # No scaling
+        (0.1, 0.2, 0.3, False),  # Small positive values
+        (-0.1, -0.2, -0.3, True),  # Small negative values
+        (1e-5, 1e-5, 1e-5, True),  # Near-zero scaling (polygon almost collapses to a 1D curve)
+        (10.0, 10.0, 10.0, False),  # Large values
+    ],
+)
+def test_polyslab_scaled_grad(
+    polyslab: td.PolySlab, x: float, y: float, z: float, expect_exception: bool
+) -> None:
+    """Checks the differentiability of the scaling operation of PolySlab."""
+    poly = polyslab
+
+    def scaled_grad(x: float, y: float, z: float) -> np.ndarray:
+        """Computes the scaled vertices of a PolySlab object."""
+        new_poly = poly.scaled(x, y, z)
+        return new_poly.vertices
+
+    if expect_exception:
+        with pytest.raises(ValueError, match=".*"):
+            check_grads(lambda x: scaled_grad(x, y, z), modes=["rev"])(x)
+            check_grads(lambda y: scaled_grad(x, y, z), modes=["rev"])(y)
+            check_grads(lambda z: scaled_grad(x, y, z), modes=["rev"])(z)
+    else:
+        check_grads(lambda x: scaled_grad(x, y, z), modes=["rev"])(x)
+        check_grads(lambda y: scaled_grad(x, y, z), modes=["rev"])(y)
+        check_grads(lambda z: scaled_grad(x, y, z), modes=["rev"])(z)
+
+
+@pytest.mark.parametrize(
+    "theta, axis, expect_exception",
+    [
+        (0.0, 0, True),  # No rotation around x-axis
+        (np.pi / 6, 1, False),  # Small rotation around y-axis
+        (-np.pi / 4, 2, True),  # Rotation around z-axis
+        (np.pi / 4, 1, False),  # 90-degree rotation around y-axis
+        (np.pi, 1, False),  # 180-degree rotation around y-axis
+    ],
+)
+def test_polyslab_rotated_grad(
+    polyslab: td.PolySlab, theta: float, axis: int, expect_exception: bool
+) -> None:
+    """Checks the differentiability of the rotation operation of PolySlab."""
+    poly = polyslab
+
+    def rotated_grad(angle: float, axis: int) -> np.ndarray:
+        """Computes the rotated vertices of a PolySlab object."""
+        new_poly = poly.rotated(angle, axis)
+        if not hasattr(new_poly, "vertices"):
+            raise ValueError("Rotation resulted in a non-differentiable Transformed object.")
+        return new_poly.vertices
+
+    if expect_exception:
+        with pytest.raises(
+            (ValueError, AttributeError), match=".*non-differentiable Transformed object.*"
+        ):
+            rotated_grad(theta, axis)
+    else:
+        check_grads(lambda theta: rotated_grad(theta, axis), modes=["rev"])(theta)

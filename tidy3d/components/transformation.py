@@ -10,18 +10,20 @@ import pydantic.v1 as pd
 
 from ..constants import RADIAN
 from ..exceptions import ValidationError
+from .autograd import TracedFloat
 from .base import Tidy3dBaseModel, cached_property
 from .types import ArrayFloat2D, Axis, Coordinate, TensorReal
-from .autograd import TracedFloat
 
 
 class AbstractRotation(ABC, Tidy3dBaseModel):
     """Abstract rotation of vectors and tensors."""
 
+    @cached_property
     @abstractmethod
     def matrix(self) -> TensorReal:
         """Rotation matrix."""
 
+    @cached_property
     @abstractmethod
     def isidentity(self) -> bool:
         """Check whether rotation is identity."""
@@ -40,13 +42,13 @@ class AbstractRotation(ABC, Tidy3dBaseModel):
             Rotated vector.
         """
 
-        if self.isidentity():
+        if self.isidentity:
             return vector
 
         if len(vector.shape) == 1:
-            return self.matrix() @ vector
+            return self.matrix @ vector
 
-        return np.tensordot(self.matrix(), vector, axes=1)
+        return np.tensordot(self.matrix, vector, axes=1)
 
     def rotate_tensor(self, tensor: TensorReal) -> TensorReal:
         """Rotate a tensor.
@@ -62,10 +64,10 @@ class AbstractRotation(ABC, Tidy3dBaseModel):
             Rotated tensor.
         """
 
-        if self.isidentity():
+        if self.isidentity:
             return tensor
 
-        return np.matmul(self.matrix(), np.matmul(tensor, self.matrix().T))
+        return np.matmul(self.matrix, np.matmul(tensor, self.matrix.T))
 
 
 class RotationAroundAxis(AbstractRotation):
@@ -101,29 +103,26 @@ class RotationAroundAxis(AbstractRotation):
                 "The norm of vector 'axis' cannot be zero. Please provide a proper rotation axis."
             )
         return val
-    
+
+    @cached_property
     def isidentity(self) -> bool:
         """Check whether rotation is identity."""
 
         return np.isclose(self.angle % (2 * np.pi), 0)
-    
+
+    @cached_property
     def matrix(self) -> TensorReal:
         """Rotation matrix."""
 
-        if self.isidentity():
+        if self.isidentity:
             return np.eye(3)
 
         norm = np.linalg.norm(self.axis)
         n = self.axis / norm
         c = np.cos(self.angle)
         s = np.sin(self.angle)
-        R = np.zeros((3, 3))
-        tan_dim = [[1, 2], [2, 0], [0, 1]]
-
-        for dim in range(3):
-            R[dim, dim] = c + n[dim] ** 2 * (1 - c)
-            R[dim, tan_dim[dim][0]] = n[dim] * n[tan_dim[dim][0]] * (1 - c) - n[tan_dim[dim][1]] * s
-            R[dim, tan_dim[dim][1]] = n[dim] * n[tan_dim[dim][1]] * (1 - c) + n[tan_dim[dim][0]] * s
+        K = np.array([[0, -n[2], n[1]], [n[2], 0, -n[0]], [-n[1], n[0], 0]])
+        R = np.eye(3) + s * K + (1 - c) * K @ K
 
         return R
 

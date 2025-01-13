@@ -2792,7 +2792,7 @@ class Transformed(Geometry):
             Transform matrix with shape (4, 4).
         """
         transform = np.eye(4)
-        transform[:3, :3] = RotationAroundAxis(angle=angle, axis=axis).matrix()
+        transform[:3, :3] = RotationAroundAxis(angle=angle, axis=axis).matrix
         return transform
 
     @staticmethod
