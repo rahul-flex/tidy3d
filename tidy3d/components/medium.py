@@ -15,6 +15,7 @@ import autograd.numpy as np
 import numpy as npo
 import pydantic.v1 as pd
 import xarray as xr
+from matplotlib.ticker import FuncFormatter
 from scipy import signal
 
 from ..constants import (
@@ -686,7 +687,7 @@ class AbstractMedium(ABC, Tidy3dBaseModel):
             comp.nonlinear_spec is not None for comp in [self.ss, self.tt]
         ):
             raise ValidationError(
-                "Nonlinearities are not currently supported for the components " "of a 2D medium."
+                "Nonlinearities are not currently supported for the components of a 2D medium."
             )
 
         if self.nonlinear_spec is None:
@@ -717,7 +718,7 @@ class AbstractMedium(ABC, Tidy3dBaseModel):
             comp.modulation_spec is not None for comp in [self.ss, self.tt]
         ):
             raise ValidationError(
-                "Time modulation is not currently supported for the components " "of a 2D medium."
+                "Time modulation is not currently supported for the components of a 2D medium."
             )
 
     heat_spec: Optional[ThermalSpecType] = pd.Field(
@@ -949,6 +950,7 @@ class AbstractMedium(ABC, Tidy3dBaseModel):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
         return ax
 
     """ Conversion helper functions """
@@ -5329,6 +5331,7 @@ class AnisotropicMedium(AbstractMedium):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
         return ax
 
     @property
@@ -6740,6 +6743,7 @@ class Medium2D(AbstractMedium):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
         return ax
 
     @add_ax_if_none
@@ -6757,6 +6761,7 @@ class Medium2D(AbstractMedium):
         ax.set_title("surface conductivity")
         ax.legend()
         ax.set_aspect("auto")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
         return ax
 
     @ensure_freq_in_range
