@@ -1911,7 +1911,8 @@ def test_polyslab_translated_grad(polyslab: td.PolySlab, x: float, y: float, z: 
     [
         (0.0, 0.0, 0.0, True),  # No scaling
         (0.1, 0.2, 0.3, False),  # Small positive values
-        (-0.1, -0.2, -0.3, True),  # Small negative values
+        (-0.1, 0.2, -0.3, False),  # Reflect along x and z axes
+        (0.1, -0.2, 0.3, True),  # Flips slab bounds (pydantic validation to fail)
         (1e-5, 1e-5, 1e-5, True),  # Near-zero scaling (polygon almost collapses to a 1D curve)
         (10.0, 10.0, 10.0, False),  # Large values
     ],
@@ -1939,31 +1940,27 @@ def test_polyslab_scaled_grad(
 
 
 @pytest.mark.parametrize(
-    "theta, axis, expect_exception",
+    "theta, axis",
     [
-        (0.0, 0, True),  # No rotation around x-axis
-        (np.pi / 6, 1, False),  # Small rotation around y-axis
-        (-np.pi / 4, 2, True),  # Rotation around z-axis
-        (np.pi / 4, 1, False),  # 90-degree rotation around y-axis
-        (np.pi, 1, False),  # 180-degree rotation around y-axis
+        (0.0, 0),  # No rotation around x-axis
+        (np.pi / 6, 1),  # Small rotation around y-axis
+        (-np.pi / 4, 2),  # Rotation around z-axis
+        (np.pi / 4, 1),  # 90-degree rotation around y-axis
+        (np.pi, 1),  # 180-degree rotation around y-axis
     ],
 )
-def test_polyslab_rotated_grad(
-    polyslab: td.PolySlab, theta: float, axis: int, expect_exception: bool
-) -> None:
+def test_polyslab_rotated_grad(polyslab: td.PolySlab, theta: float, axis: int) -> None:
     """Checks the differentiability of the rotation operation of PolySlab."""
     poly = polyslab
+    expect_exception = axis != poly.axis  # Rotation about different axis will fail
 
     def rotated_grad(angle: float, axis: int) -> np.ndarray:
         """Computes the rotated vertices of a PolySlab object."""
-        new_poly = poly.rotated(angle, axis)
-        if not hasattr(new_poly, "vertices"):
-            raise ValueError("Rotation resulted in a non-differentiable Transformed object.")
-        return new_poly.vertices
+        return poly.rotated(angle, axis).vertices
 
     if expect_exception:
         with pytest.raises(
-            (ValueError, AttributeError), match=".*non-differentiable Transformed object.*"
+            AttributeError, match=".*'Transformed' object has no attribute 'vertices'.*"
         ):
             rotated_grad(theta, axis)
     else:
