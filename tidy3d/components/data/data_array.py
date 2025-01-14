@@ -501,7 +501,7 @@ class DataArray(xr.DataArray):
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
 
             elif "f" in ylabel:
-                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e} THz"))
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
 
         return out
