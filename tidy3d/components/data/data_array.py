@@ -8,9 +8,11 @@ from typing import Any, Dict, List, Mapping, Union
 import autograd.numpy as anp
 import dask
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from autograd.tracer import isbox
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 from xarray.core import alignment, missing
 from xarray.core.indexes import PandasIndex
 from xarray.core.indexing import _outer_to_numpy_indexer
@@ -249,8 +251,7 @@ class DataArray(xr.DataArray):
         """Load an DataArray from an hdf5 file with a given path to the group."""
         if ".hdf5" not in fname:
             raise FileError(
-                "DataArray objects must be written to '.hdf5' format. "
-                f"Given filename of {fname}."
+                f"DataArray objects must be written to '.hdf5' format. Given filename of {fname}."
             )
         return cls.from_hdf5(fname=fname, group_path=group_path)
 
@@ -485,6 +486,25 @@ class DataArray(xr.DataArray):
             if len(out_dims) > 1:
                 result = result.transpose(*out_dims)
         return result
+
+    def plot(self, *args, **kwargs):
+        """Override xarray's plot method to format frequency axis in scientific notation if 'f' is in dims."""
+        out = super().plot(*args, **kwargs)
+
+        if "f" in self.dims:
+            ax = plt.gca()
+            xlabel = ax.get_xlabel().lower()
+            ylabel = ax.get_ylabel().lower()
+
+            if "f" in xlabel:
+                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e} THz"))
+                ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+
+            elif "f" in ylabel:
+                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+                ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+
+        return out
 
 
 class FreqDataArray(DataArray):

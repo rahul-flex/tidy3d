@@ -15,7 +15,7 @@ import autograd.numpy as np
 import numpy as npo
 import pydantic.v1 as pd
 import xarray as xr
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy import signal
 
 from ..constants import (
@@ -950,7 +950,8 @@ class AbstractMedium(ABC, Tidy3dBaseModel):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     """ Conversion helper functions """
@@ -5331,7 +5332,8 @@ class AnisotropicMedium(AbstractMedium):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @property
@@ -6743,7 +6745,8 @@ class Medium2D(AbstractMedium):
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @add_ax_if_none
@@ -6761,7 +6764,8 @@ class Medium2D(AbstractMedium):
         ax.set_title("surface conductivity")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.4e}"))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @ensure_freq_in_range
