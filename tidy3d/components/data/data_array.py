@@ -497,12 +497,14 @@ class DataArray(xr.DataArray):
             ylabel = ax.get_ylabel().lower()
 
             if "f" in xlabel:
-                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e} THz"))
+                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+                ax.set_xlabel("frequency (Hz)")
 
             elif "f" in ylabel:
-                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e} THz"))
-                ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+                ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+                ax.set_ylabel("frequency (Hz)")
 
         return out
 
