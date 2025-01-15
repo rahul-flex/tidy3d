@@ -8,11 +8,9 @@ from typing import Any, Dict, List, Mapping, Union
 import autograd.numpy as anp
 import dask
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from autograd.tracer import isbox
-from matplotlib.ticker import FuncFormatter, MaxNLocator
 from xarray.core import alignment, missing
 from xarray.core.indexes import PandasIndex
 from xarray.core.indexing import _outer_to_numpy_indexer
@@ -489,22 +487,28 @@ class DataArray(xr.DataArray):
 
     def plot(self, *args, **kwargs):
         """Override xarray's plot method to format frequency axis in scientific notation if 'f' is in dims."""
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter, MaxNLocator
+
         out = super().plot(*args, **kwargs)
 
         if "f" in self.dims:
             ax = plt.gca()
-            xlabel = ax.get_xlabel().lower()
-            ylabel = ax.get_ylabel().lower()
 
-            if "f" in xlabel:
-                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-                ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
-                ax.set_xlabel("frequency (Hz)")
+            try:
+                f_axis = self.get_axis_num("f")  # Get the axis index for "f"
+            except ValueError:
+                return out  # "f" not in dimensions, no need to modify axes
 
-            elif "f" in ylabel:
+            if f_axis == 0:  # "f" corresponds to y-axis
                 ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-                ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+                ax.yaxis.set_major_locator(MaxNLocator())  # Let Matplotlib decide nbins
                 ax.set_ylabel("frequency (Hz)")
+
+            elif f_axis == 1:  # "f" corresponds to x-axis
+                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
+                ax.xaxis.set_major_locator(MaxNLocator())  # Let Matplotlib decide nbins
+                ax.set_xlabel("frequency (Hz)")
 
         return out
 

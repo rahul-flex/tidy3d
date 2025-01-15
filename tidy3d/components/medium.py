@@ -15,7 +15,6 @@ import autograd.numpy as np
 import numpy as npo
 import pydantic.v1 as pd
 import xarray as xr
-from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy import signal
 
 from ..constants import (
@@ -943,14 +942,13 @@ class AbstractMedium(ABC, Tidy3dBaseModel):
         eps_complex = np.array([self.eps_model(freq) for freq in freqs])
         n, k = AbstractMedium.eps_complex_to_nk(eps_complex)
 
-        ax.plot(freqs, n, label="n")
-        ax.plot(freqs, k, label="k")
-        ax.set_xlabel("frequency (Hz)")
+        freqs_thz = freqs / 1e12
+        ax.plot(freqs_thz, n, label="n")
+        ax.plot(freqs_thz, k, label="k")
+        ax.set_xlabel("frequency (THz)")
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     """ Conversion helper functions """
@@ -5319,19 +5317,18 @@ class AnisotropicMedium(AbstractMedium):
         """Plot n, k of a :class:`.Medium` as a function of frequency."""
 
         freqs = np.array(freqs)
+        freqs_thz = freqs / 1e12
 
         for label, medium_component in self.elements.items():
             eps_complex = medium_component.eps_model(freqs)
             n, k = AbstractMedium.eps_complex_to_nk(eps_complex)
-            ax.plot(freqs, n, label=f"n, eps_{label}")
-            ax.plot(freqs, k, label=f"k, eps_{label}")
+            ax.plot(freqs_thz, n, label=f"n, eps_{label}")
+            ax.plot(freqs_thz, k, label=f"k, eps_{label}")
 
-        ax.set_xlabel("frequency (Hz)")
+        ax.set_xlabel("frequency (THz)")
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @property
@@ -6731,37 +6728,35 @@ class Medium2D(AbstractMedium):
         )
 
         freqs = np.array(freqs)
+        freqs_thz = freqs / 1e12
 
         for label, medium_component in self.elements.items():
             eps_complex = medium_component.eps_model(freqs)
             n, k = AbstractMedium.eps_complex_to_nk(eps_complex)
-            ax.plot(freqs, n, label=f"n, eps_{label}")
-            ax.plot(freqs, k, label=f"k, eps_{label}")
+            ax.plot(freqs_thz, n, label=f"n, eps_{label}")
+            ax.plot(freqs_thz, k, label=f"k, eps_{label}")
 
-        ax.set_xlabel("frequency (Hz)")
+        ax.set_xlabel("frequency (THz)")
         ax.set_title("medium dispersion")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @add_ax_if_none
     def plot_sigma(self, freqs: float, ax: Ax = None) -> Ax:
         """Plot the surface conductivity of the 2D material."""
         freqs = np.array(freqs)
+        freqs_thz = freqs / 1e12
 
         for label, medium_component in self.elements.items():
             sigma = medium_component.sigma_model(freqs)
-            ax.plot(freqs, np.real(sigma) * 1e6, label=f"Re($\\sigma$) ($\\mu$S), eps_{label}")
-            ax.plot(freqs, np.imag(sigma) * 1e6, label=f"Im($\\sigma$) ($\\mu$S), eps_{label}")
+            ax.plot(freqs_thz, np.real(sigma) * 1e6, label=f"Re($\\sigma$) ($\\mu$S), eps_{label}")
+            ax.plot(freqs_thz, np.imag(sigma) * 1e6, label=f"Im($\\sigma$) ($\\mu$S), eps_{label}")
 
-        ax.set_xlabel("frequency (Hz)")
+        ax.set_xlabel("frequency (THz)")
         ax.set_title("surface conductivity")
         ax.legend()
         ax.set_aspect("auto")
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
         return ax
 
     @ensure_freq_in_range
