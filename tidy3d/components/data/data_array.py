@@ -485,8 +485,19 @@ class DataArray(xr.DataArray):
                 result = result.transpose(*out_dims)
         return result
 
-    def plot(self, *args, **kwargs):
-        """Override xarray's plot method to format frequency axis in scientific notation if 'f' is in dims."""
+    def plot(self, *args: Any, **kwargs: Any) -> Any:
+        """Overrides xarray's plot method to format the frequency axis in scientific notation if 'f' is in dimensions.
+
+        Parameters:
+        -----------
+        *args, **kwargs : Any
+            Arguments passed to xarray's plot method.
+
+        Returns:
+        --------
+        Any
+            The output of xarray's plot method.
+        """
         import matplotlib.pyplot as plt
         from matplotlib.ticker import FuncFormatter, MaxNLocator
 
@@ -496,18 +507,18 @@ class DataArray(xr.DataArray):
             ax = plt.gca()
 
             try:
-                f_axis = self.get_axis_num("f")  # Get the axis index for "f"
+                f_axis = self.get_axis_num("f")
             except ValueError:
-                return out  # "f" not in dimensions, no need to modify axes
+                return out
 
-            if f_axis == 0:  # "f" corresponds to y-axis
+            if f_axis == 0:
                 ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-                ax.yaxis.set_major_locator(MaxNLocator())  # Let Matplotlib decide nbins
+                ax.yaxis.set_major_locator(MaxNLocator())
                 ax.set_ylabel("frequency (Hz)")
 
-            elif f_axis == 1:  # "f" corresponds to x-axis
+            elif f_axis == 1:
                 ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.2e}"))
-                ax.xaxis.set_major_locator(MaxNLocator())  # Let Matplotlib decide nbins
+                ax.xaxis.set_major_locator(MaxNLocator())
                 ax.set_xlabel("frequency (Hz)")
 
         return out
