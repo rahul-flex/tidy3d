@@ -11,11 +11,13 @@ import autograd.numpy as np
 import pydantic.v1 as pydantic
 import shapely
 import xarray as xr
+from autograd.extend import Box as AutogradBox
 
 try:
     from matplotlib import patches
 except ImportError:
     pass
+
 
 from ...constants import LARGE_NUMBER, MICROMETER, RADIAN, fp_eps, inf
 from ...exceptions import (
@@ -2615,7 +2617,15 @@ class Transformed(Geometry):
 
     @pydantic.validator("geometry")
     def _geometry_is_finite(cls, val):
-        if not np.isfinite(val.bounds).all():
+        def preprocess(value):
+            return value._value if isinstance(value, np.numpy_boxes.ArrayBox) else value
+
+        processed_bounds = tuple(
+            tuple(preprocess(coord) for coord in bound) for bound in val.bounds
+        )
+
+        # Ensure all values are finite
+        if not np.isfinite(processed_bounds).all():
             raise ValidationError(
                 "Transformations are only supported on geometries with finite dimensions. "
                 "Try using a large value instead of 'inf' when creating geometries that undergo "
@@ -2675,6 +2685,84 @@ class Transformed(Geometry):
         # precise TriangleMesh representations for GeometryGroup or ClipOperation.
         vertices = np.dot(self.transform, self._vertices_from_bounds(self.geometry.bounds))[:3]
         return (tuple(vertices.min(axis=1)), tuple(vertices.max(axis=1)))
+
+    def compute_derivatives(self, derivative_info: DerivativeInfo) -> AutogradFieldMap:
+        """
+        Compute the adjoint derivatives for the transformed geometry by
+        transforming the base geometry and mapping gradients back to the original space.
+
+        Args:
+            derivative_info (DerivativeInfo): Contains paths and gradient information.
+
+        Returns:
+            AutogradFieldMap: A mapping of derivative paths to their computed values.
+        """
+        derivative_map = {}
+
+        geometry_paths = [path for path in derivative_info.paths if path[0] == "geometry"]
+        transform_paths = [path for path in derivative_info.paths if path[0] == "transform"]
+        if "transform" in [p[0] for p in transform_paths]:
+            transform_paths = [("transform", i, j) for i in range(4) for j in range(4)]
+
+        if geometry_paths:
+            T = self.transform
+            R = T[:3, :3]  # Rotation-scaling matrix
+            t = T[:3, 3]  # Translation vector
+            base_center = np.array(self.geometry.center + (1,)).reshape(4, 1)
+            base_size = np.array(self.geometry.size + (0,)).reshape(4, 1)
+
+            transformed_center = tuple((base_center[:3, :] + t.reshape(3, 1)).flatten())
+            transformed_size = tuple((R @ base_size[:3]).flatten())
+
+            transformed_geometry = self.geometry.updated_copy(
+                center=transformed_center, size=transformed_size
+            )
+
+            geo_info = derivative_info.updated_copy(
+                paths=[path[1:] for path in geometry_paths], deep=False
+            )
+            transformed_geometry_derivatives = transformed_geometry.compute_derivatives(geo_info)
+
+            transformed_center_gradient = np.array(
+                transformed_geometry_derivatives.get(("center",), (0.0, 0.0, 0.0))
+            )
+            transformed_size_gradient = np.array(
+                transformed_geometry_derivatives.get(("size",), (0.0, 0.0, 0.0))
+            )
+
+            R_T = R.T
+            original_center_gradient = transformed_center_gradient
+            original_size_gradient = R_T @ transformed_size_gradient
+
+            derivative_map[("geometry", "center")] = original_center_gradient
+            derivative_map[("geometry", "size")] = original_size_gradient
+        derivative_map[("transform",)] = np.zeros((4, 4))
+
+        if transform_paths:
+            for path in transform_paths:
+                row, col = path[1], path[2]
+                dL_dx_prime_center = np.array(
+                    transformed_geometry_derivatives.get(("center",), np.zeros(3))
+                )
+                dL_dx_prime_size = np.array(
+                    transformed_geometry_derivatives.get(("size",), np.zeros(3))
+                )
+                if col == 3:
+                    # Translation elements (last column) are only influenced by center
+                    gradient = (
+                        dL_dx_prime_center[row] if row < 3 else 0.0
+                    )  # Ensure no out-of-bounds error
+                elif row < 3 and col < 3:
+                    # Scaling elements (diagonal T[0,0], T[1,1], T[2,2]) affect size
+                    gradient = (
+                        dL_dx_prime_size[row] * (1 if row == col else 0) * base_size.flatten()[row]
+                    )
+                else:
+                    gradient = 0.0  # Ensure all off-diagonal elements are zero
+
+                derivative_map[("transform",)][row, col] = gradient
+
+        return derivative_map
 
     def intersections_tilted_plane(
         self, normal: Coordinate, origin: Coordinate, to_2D: MatrixReal4x4
@@ -2791,7 +2879,7 @@ class Transformed(Geometry):
         numpy.ndarray
             Transform matrix with shape (4, 4).
         """
-        if np.isclose((x, y, z), 0.0).any():
+        if np.isclose(np.array([x, y, z]), 0.0).any():
             raise Tidy3dError("Scaling factors cannot be zero in any dimensions.")
         return np.array(
             [
@@ -2800,7 +2888,7 @@ class Transformed(Geometry):
                 (0.0, 0.0, z, 0.0),
                 (0.0, 0.0, 0.0, 1.0),
             ],
-            dtype=float,
+            dtype=AutogradBox,
         )
 
     @staticmethod
