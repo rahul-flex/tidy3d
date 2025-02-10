@@ -2699,8 +2699,14 @@ class Transformed(Geometry):
         """
         derivative_map = {}
 
-        geometry_paths = [path for path in derivative_info.paths if path[0] == "geometry"]
         transform_paths = [path for path in derivative_info.paths if path[0] == "transform"]
+
+        if derivative_info.paths == [("transform",)]:
+            derivative_info = derivative_info.updated_copy(
+                paths=[("geometry", "center"), ("geometry", "size"), ("transform",)], deep=False
+            )
+        geometry_paths = [path for path in derivative_info.paths if path[0] == "geometry"]
+
         if "transform" in [p[0] for p in transform_paths]:
             transform_paths = [("transform", i, j) for i in range(4) for j in range(4)]
 
@@ -2858,7 +2864,7 @@ class Transformed(Geometry):
                 (0.0, 0.0, 1.0, z),
                 (0.0, 0.0, 0.0, 1.0),
             ],
-            dtype=float,
+            dtype=AutogradBox,
         )
 
     @staticmethod
