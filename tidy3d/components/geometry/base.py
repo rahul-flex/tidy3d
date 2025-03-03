@@ -2433,11 +2433,15 @@ class Box(SimplePlaneIntersection, Centered):
 
     """ Autograd code """
 
-    def compute_derivatives(self, derivative_info: DerivativeInfo) -> AutogradFieldMap:
-        """Compute the adjoint derivatives for this object."""
+    def compute_derivatives(
+        self, derivative_info: DerivativeInfo, face_normals: np.ndarray = None
+    ) -> AutogradFieldMap:
+        """Compute the adjoint derivatives for this object with optional rotated face normals."""
 
-        # get gradients w.r.t. each of the 6 faces (in normal direction)
-        vjps_faces = self.derivative_faces(derivative_info=derivative_info)
+        # Compute gradients w.r.t. each of the 6 faces using the provided normals (if any)
+        vjps_faces = self.derivative_faces(
+            derivative_info=derivative_info, face_normals=face_normals
+        )
 
         # post-process these values to give the gradients w.r.t. center and size
         vjps_center_size = self.derivatives_center_size(vjps_faces=vjps_faces)
@@ -2475,18 +2479,25 @@ class Box(SimplePlaneIntersection, Centered):
             size=tuple(vjp_size.tolist()),
         )
 
-    def derivative_faces(self, derivative_info: DerivativeInfo) -> Bound:
-        """Derivative with respect to normal position of 6 faces of ``Box``."""
+    def derivative_faces(
+        self, derivative_info: DerivativeInfo, face_normals: np.ndarray = None
+    ) -> Bound:
+        """Compute derivatives with respect to the normal position of 6 faces of `Box`, using rotated normals if provided."""
 
         # change in permittivity between inside and outside
         vjp_faces = np.zeros((2, 3))
 
         for min_max_index, _ in enumerate((0, -1)):
             for axis in range(3):
+                face_normal = (
+                    face_normals[min_max_index, axis] if face_normals is not None else None
+                )
+
                 vjp_face = self.derivative_face(
                     min_max_index=min_max_index,
                     axis_normal=axis,
                     derivative_info=derivative_info,
+                    normal_vector=face_normal,
                 )
 
                 # record vjp for this face
@@ -2499,6 +2510,7 @@ class Box(SimplePlaneIntersection, Centered):
         min_max_index: int,
         axis_normal: Axis,
         derivative_info: DerivativeInfo,
+        normal_vector: np.ndarray = None,
     ) -> float:
         """Compute the derivative w.r.t. shifting a face in the normal direction."""
 
@@ -2509,6 +2521,7 @@ class Box(SimplePlaneIntersection, Centered):
         # normal and tangential fields
         D_normal = derivative_info.D_der_map[fld_normal]
         Es_perp = tuple(derivative_info.E_der_map[key] for key in flds_perp)
+        print("fld_normal", fld_normal, D_normal)
 
         # normal and tangential bounds
         bounds_T = np.array(derivative_info.bounds).T  # put (xyz) first dimension
@@ -2520,6 +2533,7 @@ class Box(SimplePlaneIntersection, Centered):
 
         # normal field data coordinates
         fld_coords_normal = D_normal.coords[dim_normal]
+        print("bounds", bounds_perp, bounds_normal, bounds_T)
 
         # condition: a face is entirely outside of the domain, skip!
         sign = (-1, 1)[min_max_index]
@@ -2591,6 +2605,208 @@ class Box(SimplePlaneIntersection, Centered):
             vjp_value += integral_E
 
         return np.real(vjp_value)
+
+    # def derivative_face(self, min_max_index: int,
+    #                 axis_normal: int, # remove
+    #                 derivative_info: DerivativeInfo,
+    #                 normal_vector: np.ndarray = None) -> float:
+    #     """
+    #     Compute the derivative (VJP) with respect to shifting a face.
+
+    #     If 'normal_vector' is provided, it is taken as the rotated face normal.
+    #     Otherwise, the face is assumed to be aligned with the canonical axis (axis_normal).
+    #     """
+
+    #     def compute_tangential_vectors(normal: np.ndarray, eps: float = 1.e-8) -> tuple[np.ndarray, np.ndarray]:
+    #         """
+    #         Given a unit normal vector, compute two orthogonal unit vectors
+    #         that lie in the plane perpendicular to 'normal'.
+    #         """
+    #         if abs(normal[0]) > abs(normal[2]):
+    #             t1 = np.array([-normal[1], normal[0], 0.0])
+    #         else:
+    #             t1 = np.array([0.0, -normal[2], normal[1]])
+    #         t1_norm = np.linalg.norm(t1)
+    #         if t1_norm < eps:
+    #             raise ValueError("Cannot compute tangential vectors due to degenerate normal vector.")
+    #         t1 = t1 / t1_norm
+    #         t2 = np.cross(normal, t1)
+    #         t2_norm = np.linalg.norm(t2)
+    #         if t2_norm < eps:
+    #             raise ValueError("Computed tangential vector is degenerate.")
+    #         t2 = t2 / t2_norm
+    #         return t1, t2
+
+    #     def project_to_local(arr: xr.DataArray, n_local: np.ndarray,
+    #                         t1_local: np.ndarray, t2_local: np.ndarray) -> xr.DataArray:
+    #         """
+    #         Given an xarray DataArray with spatial coordinates (expected to include "x", "y", "z"),
+    #         stack those dims into one new dimension "spatial" and compute new local coordinates.
+    #         The computed coordinate "s" (projection onto n_local), along with "t1" and "t2",
+    #         are assigned as new coordinates on the stacked dimension.
+    #         """
+    #         # Determine which dims are spatial (from a preferred set).
+    #         preferred_dims = ("x", "y", "z")
+    #         spatial_dims = [dim for dim in arr.dims if dim in preferred_dims]
+    #         if not spatial_dims:
+    #             raise ValueError("Input array does not have any of the expected spatial dimensions.")
+    #         # Create a meshgrid for the spatial coordinates.
+    #         coords = [arr.coords[dim].values for dim in spatial_dims]
+    #         mesh = np.meshgrid(*coords, indexing="ij")
+    #         # For simplicity, assume the order is the same as preferred_dims.
+    #         # (If the order differs, adjust accordingly.)
+    #         Xg, Yg, Zg = mesh[:3]
+    #         s = n_local[0]*Xg + n_local[1]*Yg + n_local[2]*Zg
+    #         t1 = t1_local[0]*Xg + t1_local[1]*Yg + t1_local[2]*Zg
+    #         t2 = t2_local[0]*Xg + t2_local[1]*Yg + t2_local[2]*Zg
+    #         # Stack the spatial dimensions.
+    #         arr_stacked = arr.stack(spatial=spatial_dims)
+    #         # Assign new coordinates.
+    #         arr_stacked = arr_stacked.assign_coords(
+    #             s=("spatial", s.ravel()),
+    #             t1=("spatial", t1.ravel()),
+    #             t2=("spatial", t2.ravel())
+    #         )
+    #         return arr_stacked
+
+    #     def interpolate_field_local(arr: xr.DataArray, target_s: float,
+    #                                 n_local: np.ndarray, t1_local: np.ndarray, t2_local: np.ndarray) -> xr.DataArray:
+    #         """
+    #         Project the array to local coordinates and then interpolate along the "s" coordinate.
+    #         """
+    #         arr_local = project_to_local(arr, n_local, t1_local, t2_local)
+    #         return arr_local.interp(s=target_s, assume_sorted=True)
+
+    #     # 1. Determine the local basis.
+    #     if normal_vector is None:
+    #         # Use canonical basis.
+    #         if axis_normal == 0:
+    #             n_local = np.array([1.0, 0.0, 0.0])
+    #             t1_local = np.array([0.0, 1.0, 0.0])
+    #             t2_local = np.array([0.0, 0.0, 1.0])
+    #         elif axis_normal == 1:
+    #             n_local = np.array([0.0, 1.0, 0.0])
+    #             t1_local = np.array([1.0, 0.0, 0.0])
+    #             t2_local = np.array([0.0, 0.0, 1.0])
+    #         elif axis_normal == 2:
+    #             n_local = np.array([0.0, 0.0, 1.0])
+    #             t1_local = np.array([1.0, 0.0, 0.0])
+    #             t2_local = np.array([0.0, 1.0, 0.0])
+    #         else:
+    #             raise ValueError("Invalid axis_normal")
+    #     else:
+    #         n_local = normal_vector / np.linalg.norm(normal_vector)
+    #         t1_local, t2_local = compute_tangential_vectors(n_local)
+
+    #     # 2. Determine face location and tangential bounds.
+    #     # Compute the eight corners of the box.
+    #     bounds_global = np.array(derivative_info.bounds).T  # shape (3,2)
+    #     corners = np.array([[bounds_global[0, i], bounds_global[1, j], bounds_global[2, k]]
+    #                         for i in (0, 1) for j in (0, 1) for k in (0, 1)])
+    #     # Project corners onto the local normal ("s" coordinate).
+    #     proj = corners.dot(n_local)
+    #     coord_s_face = np.min(proj) if min_max_index == 0 else np.max(proj)
+    #     # Transform corners into local coordinates.
+    #     local_corners = np.zeros((8, 3))
+    #     for i in range(8):
+    #         local_corners[i, 0] = corners[i].dot(n_local)   # s coordinate
+    #         local_corners[i, 1] = corners[i].dot(t1_local)    # t1 coordinate
+    #         local_corners[i, 2] = corners[i].dot(t2_local)    # t2 coordinate
+    #     tol = 1e-6
+    #     face_corners = local_corners[np.abs(local_corners[:, 0] - coord_s_face) < tol]
+    #     if face_corners.size == 0:
+    #         face_corners = local_corners  # fallback if none exactly match
+    #     t1_bounds = (face_corners[:, 1].min(), face_corners[:, 1].max())
+    #     t2_bounds = (face_corners[:, 2].min(), face_corners[:, 2].max())
+    #     bounds_perp = [t1_bounds, t2_bounds]
+
+    #     # --- DOMAIN CHECK (for rotated coordinates) ---
+    #     # Project the D field (global) to local coordinates and check its "s" range.
+    #     DEx = derivative_info.D_der_map["Ex"]
+    #     DEy = derivative_info.D_der_map["Ey"]
+    #     DEz = derivative_info.D_der_map["Ez"]
+    #     D_normal_global = n_local[0]*DEx + n_local[1]*DEy + n_local[2]*DEz
+    #     D_normal_proj = project_to_local(D_normal_global, n_local, t1_local, t2_local)
+    #     s_vals = D_normal_proj.coords["s"].values
+    #     print('bounds',  D_normal_global)
+    #     if s_vals.size == 0:
+    #         return 0.0
+    #     s_min, s_max = s_vals.min(), s_vals.max()
+    #     if min_max_index == 0 and coord_s_face < s_min:
+    #         # Face is entirely outside the domain.
+    #         return 0.0
+    #     if min_max_index != 0 and coord_s_face > s_max:
+    #         return 0.0
+
+    #     # 3. Interpolate field data onto the face.
+    #     D_normal_local = D_normal_global  # already computed above
+    #     EEx = derivative_info.E_der_map["Ex"]
+    #     EEy = derivative_info.E_der_map["Ey"]
+    #     EEz = derivative_info.E_der_map["Ez"]
+    #     E_perp1_global = t1_local[0]*EEx + t1_local[1]*EEy + t1_local[2]*EEz
+    #     E_perp2_global = t2_local[0]*EEx + t2_local[1]*EEy + t2_local[2]*EEz
+    #     print('bounds', E_perp1_global, E_perp2_global, D_normal_global)
+
+    #     D_normal_face = interpolate_field_local(D_normal_local, coord_s_face, n_local, t1_local, t2_local)
+    #     E_perp1_face = interpolate_field_local(E_perp1_global, coord_s_face, n_local, t1_local, t2_local)
+    #     E_perp2_face = interpolate_field_local(E_perp2_global, coord_s_face, n_local, t1_local, t2_local)
+
+    #     # 4. Revised permittivity handling.
+    #     num_cells_in = 4  # should be distance # AMke it generic surface mesh
+    #     eps_xyz = [derivative_info.eps_data[f"eps_{dim}{dim}"] for dim in "xyz"]
+
+    #     eps_in_fields = []
+    #     eps_out_fields = []
+    #     for eps in eps_xyz:
+    #         # Project eps field into the local system.
+    #         eps_local = project_to_local(eps, n_local, t1_local, t2_local)
+    #         s_vals = eps_local.coords["s"].values
+    #         if len(s_vals) <= num_cells_in:
+    #             eps_in_fields.append(derivative_info.eps_in)
+    #             eps_out_fields.append(derivative_info.eps_out)
+    #         else:
+    #             if min_max_index == 0:
+    #                 index_out, index_in = (0, num_cells_in - 1)
+    #             else:
+    #                 index_out, index_in = (-1, -num_cells_in)
+    #             eps_in_fields.append(eps_local.isel(s=index_in))
+    #             eps_out_fields.append(eps_local.isel(s=index_out))
+
+    #     # Compute effective eps in the rotated coordinate system via weighted sums.
+    #     eps_in_normal = (n_local[0]**2 * eps_in_fields[0] +
+    #                     n_local[1]**2 * eps_in_fields[1] +
+    #                     n_local[2]**2 * eps_in_fields[2])
+    #     eps_out_normal = (n_local[0]**2 * eps_out_fields[0] +
+    #                       n_local[1]**2 * eps_out_fields[1] +
+    #                       n_local[2]**2 * eps_out_fields[2])
+    #     eps_in_perp1 = (t1_local[0]**2 * eps_in_fields[0] +
+    #                     t1_local[1]**2 * eps_in_fields[1] +
+    #                     t1_local[2]**2 * eps_in_fields[2])
+    #     eps_in_perp2 = (t2_local[0]**2 * eps_in_fields[0] +
+    #                     t2_local[1]**2 * eps_in_fields[1] +
+    #                     t2_local[2]**2 * eps_in_fields[2])
+    #     eps_out_perp1 = (t1_local[0]**2 * eps_out_fields[0] +
+    #                     t1_local[1]**2 * eps_out_fields[1] +
+    #                     t1_local[2]**2 * eps_out_fields[2])
+    #     eps_out_perp2 = (t2_local[0]**2 * eps_out_fields[0] +
+    #                     t2_local[1]**2 * eps_out_fields[1] +
+    #                     t2_local[2]**2 * eps_out_fields[2])
+
+    #     delta_eps_inv_normal = 1.0 / eps_in_normal - 1.0 / eps_out_normal
+    #     delta_eps_perp1 = eps_in_perp1 - eps_out_perp1
+    #     delta_eps_perp2 = eps_in_perp2 - eps_out_perp2
+
+    #     # 5. Integration over the face.
+    #     def integrate_face_local(arr: xr.DataArray) -> complex:
+    #         result = integrate_within_bounds(arr=arr, dims=["t1", "t2"], bounds=bounds_perp)
+    #         return complex(result.sum(dim="f"))
+
+    #     integral_D = integrate_face_local(-delta_eps_inv_normal * D_normal_face)
+    #     integral_E1 = integrate_face_local(E_perp1_face * delta_eps_perp1)
+    #     integral_E2 = integrate_face_local(E_perp2_face * delta_eps_perp2)
+
+    #     vjp_value = integral_D + integral_E1 + integral_E2
+    #     return np.real(vjp_value)
 
 
 """Compound subclasses"""
