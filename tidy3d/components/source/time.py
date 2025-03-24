@@ -8,8 +8,8 @@ from typing import Optional, Union
 import numpy as np
 import pydantic.v1 as pydantic
 
-from ...constants import HERTZ
-from ...exceptions import ValidationError
+from ...constants import C_0, HERTZ
+from ...exceptions import SetupError, ValidationError
 from ..data.data_array import TimeDataArray
 from ..data.dataset import TimeDataset
 from ..data.validators import validate_no_nans
@@ -94,6 +94,23 @@ class Pulse(SourceTime, ABC):
         "pulse in units of 1 / (``2pi * fwidth``).",
         ge=2.5,
     )
+
+    @pydantic.validator("freq0", always=True)
+    def _validate_freq0(cls, val):
+        """
+        Ensure 'freq0' is within a physically sensible range to catch
+        common unit mistakes.
+        """
+        min_freq = C_0 / (1e6)
+        max_freq = C_0 / (1e-6)
+        if not (min_freq <= val <= max_freq):
+            raise SetupError(
+                f"Pulse central frequency 'freq0' is {val:.3e} Hz, which corresponds "
+                f"to a free-space wavelength of {C_0 / val:.3e} µm. "
+                "Check your units! For more info on Tidy3D units, see: "
+                "https://docs.flexcompute.com/projects/tidy3d/en/latest/faq/docs/faq/What-are-the-units-used-in-the-simulation.html"
+            )
+        return val
 
     @property
     def twidth(self) -> float:
@@ -254,7 +271,7 @@ class CustomSourceTime(Pulse):
 
     Example
     -------
-    >>> cst = CustomSourceTime.from_values(freq0=1, fwidth=0.1,
+    >>> cst = CustomSourceTime.from_values(freq0=C_0, fwidth=0.1,
     ...     values=np.linspace(0, 9, 10), dt=0.1)
 
     """
