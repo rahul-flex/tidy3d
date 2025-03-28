@@ -98,11 +98,10 @@ class Pulse(SourceTime, ABC):
     @pydantic.validator("freq0", always=True)
     def _validate_freq0(cls, val):
         """
-        Ensure 'freq0' is within a physically sensible range to catch
-        common unit mistakes.
+        Ensure 'freq0' is within a physically sensible range.
         """
-        min_freq = C_0 / (1e6)
-        max_freq = C_0 / (1e-6)
+        min_freq = C_0 / 3e9
+        max_freq = C_0 / 1e-6
         if not (min_freq <= val <= max_freq):
             raise SetupError(
                 f"Pulse central frequency 'freq0' is {val:.3e} Hz, which corresponds "

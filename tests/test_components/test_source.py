@@ -415,3 +415,25 @@ def test_fixed_angle_source():
     )
 
     assert not plane_wave._is_fixed_angle
+
+
+@pytest.mark.parametrize(
+    ("freq", "expect_exception"),
+    [
+        (1e4, True),  # Below min_freq => fail
+        (td.C_0 / 3e9, False),  # Exactly at the lower bound => pass
+        (1e10, False),  # Well within range => pass
+        (td.C_0 / 1e-6, False),  # Exactly at upper bound => pass
+        (td.C_0 / 5e-7, True),  # Above max_freq => fail
+    ],
+)
+def test_pulse_freq0_validation(freq, expect_exception):
+    """
+    Test the validator that checks 'freq0' is between 1e5 and 3e20 Hz.
+    """
+    if expect_exception:
+        with pytest.raises(pydantic.ValidationError):
+            _ = td.GaussianPulse(freq0=freq, fwidth=1e14)
+    else:
+        pulse = td.GaussianPulse(freq0=freq, fwidth=1e14)
+        assert pulse.freq0 == freq

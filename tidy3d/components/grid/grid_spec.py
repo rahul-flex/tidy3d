@@ -279,12 +279,11 @@ class UniformGrid(GridSpec1d):
     @pd.validator("dl", always=True)
     def _validate_dl(cls, val):
         """
-        Ensure 'dl' is within a physically sensible range to catch common
-        unit mistakes.
+        Ensure 'dl' is within a physically sensible range.
         """
-        if not (1e-6 <= val <= 5e4):
+        if not (1e-7 <= val <= 3e8):
             raise SetupError(
-                f"Uniform grid spacing 'dl' is {val} µm."
+                f"Uniform grid spacing 'dl' is {val} µm. "
                 "Please check your units! For more info on Tidy3D units, see: "
                 "https://docs.flexcompute.com/projects/tidy3d/en/latest/faq/docs/faq/What-are-the-units-used-in-the-simulation.html"
             )
