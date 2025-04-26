@@ -523,10 +523,7 @@ def test_domain_mismatch():
     [
         (1e-8, True),  # Below 1e-7 => fail
         (1e-7, False),  # Exactly at lower bound => pass
-        (1.0, False),  # Typical value => pass
         (0.0, True),  # Zero => fail
-        (3e8, False),  # Exactly at upper bound => pass
-        (3.01e8, True),  # Above 3e8 => fail
     ],
 )
 def test_uniform_grid_dl_validation(dl, expect_exception):

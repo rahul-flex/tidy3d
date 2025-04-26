@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `fill` and `fill_structures` argument in `td.Simulation.plot_structures()` and `td.Simulation.plot()` respectively to disable fill and plot outlines of structures only.
-- Validation checks for unit errors in grid spacing and the source frequency.
+- Validation checks for unit errors in grid spacing.
 ### Fixed
 - Compatibility with `xarray>=2025.03`.
 
