@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New subpixel averaging option `ContourPathAveraging` applied to dielectric material boundaries.
 
 ### Changed
-- Error message for invalid task ID.
+- Improved error message and handling when attempting to load a non-existent task ID.
 
 ### Fixed
 - Compatibility with `xarray>=2025.03`.
